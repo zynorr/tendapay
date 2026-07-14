@@ -43,6 +43,13 @@ Copy `.env.example` and set only the integrations you need:
 | --- | --- | --- |
 | `NEXT_PUBLIC_CELO_RPC_URL` | No | Celo RPC; defaults to Forno. |
 | `NEXT_PUBLIC_CELO_ATTRIBUTION_CODE` | Production | Registered ERC-8021 application code. |
+| `DATABASE_URL` | Deployment | PostgreSQL connection string; enables the PostgreSQL repository. |
+| `S3_BUCKET` | Deployment | Private bucket; enables S3-compatible file storage. |
+| `S3_REGION` | S3 | Bucket region. |
+| `S3_ENDPOINT` | Compatible storage | Custom endpoint for R2, MinIO, or another S3 provider. |
+| `S3_ACCESS_KEY_ID` | S3 | Omit when workload credentials are available. |
+| `S3_SECRET_ACCESS_KEY` | S3 | Must be set with the access key ID. |
+| `S3_FORCE_PATH_STYLE` | No | Enable for providers that require path-style URLs. |
 | `THIRDWEB_SECRET_KEY` | x402 only | Server-side thirdweb client credential. |
 | `THIRDWEB_SERVER_WALLET_ADDRESS` | x402 only | Wallet that signs facilitator requests. |
 | `X402_FACILITATOR_URL` | No | Defaults to `https://x402.celo.org`. |
@@ -56,6 +63,7 @@ npm test
 npm run lint
 npm run typecheck
 npm run build
+npm run db:migrate
 ```
 
 ## Documentation
@@ -63,10 +71,11 @@ npm run build
 - [Architecture](docs/architecture.md)
 - [API reference](docs/api.md)
 - [Demo guide](docs/demo.md)
+- [Deployment](docs/deployment.md)
 
 ## MVP boundaries
 
-The current repository uses JSON and local disk storage to keep the hackathon
-demo self-contained. A production deployment needs authenticated freelancer
-accounts, a transactional database, private object storage, expiring client
-links, and operational monitoring.
+Local development uses JSON and disk storage to keep the hackathon demo
+self-contained. Deployments can use PostgreSQL and private S3-compatible object
+storage. Production still needs authenticated freelancer accounts, expiring
+client links, and operational monitoring.

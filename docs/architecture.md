@@ -15,8 +15,8 @@ flowchart LR
   InvoiceAPI --> Repository["Invoice repository"]
   ConfirmAPI --> Repository
   X402 --> Repository
-  Repository --> Data["Local JSON data"]
-  InvoiceAPI --> Files["Protected local files"]
+  Repository --> Data["PostgreSQL or local JSON"]
+  InvoiceAPI --> Files["Private S3 or local files"]
   X402 --> Files
 ```
 
@@ -29,8 +29,8 @@ flowchart LR
 | Client flow | `src/components/client/` | Wallet payment, milestone state, and downloads. |
 | Celo client | `src/lib/celo.ts` | Wallet connection, USDC transfer, and attribution. |
 | Verification | `src/lib/server/payment-verifier.ts` | Independent on-chain receipt validation. |
-| Persistence | `src/lib/server/invoice-repository.ts` | Atomic JSON reads and serialized writes. |
-| Files | `src/lib/server/deliverable-storage.ts` | Safe local storage and path validation. |
+| Persistence | `src/lib/server/*-invoice-repository.ts` | PostgreSQL and local repository adapters. |
+| Files | `src/lib/server/deliverable-storage.ts` | Private S3-compatible or safe local storage. |
 | HTTP routes | `src/app/api/` | Validation, status codes, and response shaping. |
 
 ## Browser payment sequence
@@ -60,9 +60,20 @@ An invoice owns one or more milestones and an activity log. A milestone carries
 its amount in integer cents, due date, settlement state, optional receipt data,
 and optional protected-file metadata. Currency is fixed to USDC in the MVP.
 
-All repository writes are serialized and persisted through a temporary-file
-rename. This prevents overlapping requests from writing partial JSON, but it is
-not a substitute for a transactional database in a multi-instance deployment.
+When `DATABASE_URL` is configured, invoices are stored as validated JSONB
+records inside PostgreSQL transactions. A dedicated settlement table enforces
+transaction-hash uniqueness across invoices. Invoice numbers come from a
+database sequence, so concurrent application instances cannot issue the same
+number.
+
+Without `DATABASE_URL`, local repository writes are serialized and persisted
+through a temporary-file rename. This prevents overlapping requests from
+writing partial JSON and keeps development zero-config.
+
+When `S3_BUCKET` is configured, deliverables are read and written through the
+private S3 API. Otherwise files remain under `.data/uploads`. Database and file
+adapters can be enabled independently, though deployed environments should use
+both production adapters.
 
 ## Security properties
 

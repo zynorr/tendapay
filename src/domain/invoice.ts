@@ -91,6 +91,16 @@ export const createInvoiceSchema = z.object({
 export type Invoice = z.infer<typeof invoiceSchema>;
 export type Milestone = z.infer<typeof milestoneSchema>;
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
+export type DeliverableAttachment = {
+  storageKey: string;
+  name: string;
+  mimeType: string;
+  size: number;
+};
+export type ConfirmedPayment = {
+  transactionHash: string;
+  payerAddress?: string;
+};
 
 export function totalInvoiceCents(invoice: Invoice): number {
   return invoice.milestones.reduce(
@@ -127,4 +137,125 @@ export function deriveInvoiceStatus(invoice: Invoice): Invoice["status"] {
   return earliestDueDate < new Date().toISOString().slice(0, 10)
     ? "overdue"
     : "sent";
+}
+
+export function createInvoiceRecord(
+  input: CreateInvoiceInput,
+  number: string,
+): Invoice {
+  const validatedInput = createInvoiceSchema.parse(input);
+  const now = new Date().toISOString();
+
+  return invoiceSchema.parse({
+    ...validatedInput,
+    id: `inv_${crypto.randomUUID()}`,
+    number,
+    currency: "USDC",
+    status: "sent",
+    createdAt: now,
+    updatedAt: now,
+    milestones: validatedInput.milestones.map((milestone) => ({
+      ...milestone,
+      id: `mil_${crypto.randomUUID()}`,
+      status: "pending",
+    })),
+    activity: [
+      {
+        id: `act_${crypto.randomUUID()}`,
+        type: "invoice_created",
+        message: `${validatedInput.freelancerName} created the payment plan.`,
+        createdAt: now,
+      },
+      {
+        id: `act_${crypto.randomUUID()}`,
+        type: "reminder_scheduled",
+        message: "Tenda scheduled milestone reminders.",
+        createdAt: now,
+      },
+    ],
+  });
+}
+
+export function attachDeliverableRecord(
+  invoice: Invoice,
+  milestoneId: string,
+  deliverable: DeliverableAttachment,
+): Invoice | null {
+  const milestoneExists = invoice.milestones.some(
+    (milestone) => milestone.id === milestoneId,
+  );
+
+  if (!milestoneExists) {
+    return null;
+  }
+
+  return invoiceSchema.parse({
+    ...invoice,
+    updatedAt: new Date().toISOString(),
+    milestones: invoice.milestones.map((milestone) =>
+      milestone.id === milestoneId
+        ? {
+            ...milestone,
+            deliverableName: deliverable.name,
+            deliverableStorageKey: deliverable.storageKey,
+            deliverableMimeType: deliverable.mimeType,
+            deliverableSize: deliverable.size,
+          }
+        : milestone,
+    ),
+  });
+}
+
+export function confirmPaymentRecord(
+  invoice: Invoice,
+  milestoneId: string,
+  payment: ConfirmedPayment,
+): Invoice | null {
+  const milestone = invoice.milestones.find(
+    (candidate) => candidate.id === milestoneId,
+  );
+
+  if (!milestone) {
+    return null;
+  }
+
+  if (["paid", "released"].includes(milestone.status)) {
+    return invoice;
+  }
+
+  const now = new Date().toISOString();
+  const updatedInvoice: Invoice = {
+    ...invoice,
+    updatedAt: now,
+    milestones: invoice.milestones.map((candidate) =>
+      candidate.id === milestoneId
+        ? {
+            ...candidate,
+            status: "released",
+            paidAt: now,
+            releasedAt: now,
+            transactionHash: payment.transactionHash,
+            payerAddress: payment.payerAddress,
+          }
+        : candidate,
+    ),
+    activity: [
+      {
+        id: `act_${crypto.randomUUID()}`,
+        type: "payment_confirmed",
+        message: `Payment confirmed for ${milestone.title}.`,
+        createdAt: now,
+      },
+      {
+        id: `act_${crypto.randomUUID()}`,
+        type: "deliverable_released",
+        message: `${milestone.deliverableName ?? "The deliverable"} was released to the client.`,
+        createdAt: now,
+      },
+      ...invoice.activity,
+    ],
+  };
+
+  updatedInvoice.status = deriveInvoiceStatus(updatedInvoice);
+  return invoiceSchema.parse(updatedInvoice);
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { invoiceRepository } from "@/lib/server/invoice-repository";
 import {
+  deleteDeliverable,
   MAX_DELIVERABLE_BYTES,
   readDeliverable,
   storeDeliverable,
@@ -47,12 +48,40 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    const previousStorageKey = milestone.deliverableStorageKey;
     const storedFile = await storeDeliverable({ invoiceId, milestoneId, file });
-    const updatedInvoice = await invoiceRepository.attachDeliverable(
-      invoiceId,
-      milestoneId,
-      storedFile,
-    );
+    let updatedInvoice;
+
+    try {
+      updatedInvoice = await invoiceRepository.attachDeliverable(
+        invoiceId,
+        milestoneId,
+        storedFile,
+      );
+    } catch (error) {
+      try {
+        await deleteDeliverable(storedFile.storageKey);
+      } catch (cleanupError) {
+        console.error("Unable to remove uncommitted deliverable", cleanupError);
+      }
+      throw error;
+    }
+
+    if (!updatedInvoice) {
+      await deleteDeliverable(storedFile.storageKey);
+      return NextResponse.json(
+        { error: "Invoice or milestone not found." },
+        { status: 404 },
+      );
+    }
+
+    if (previousStorageKey && previousStorageKey !== storedFile.storageKey) {
+      try {
+        await deleteDeliverable(previousStorageKey);
+      } catch (error) {
+        console.error("Unable to remove replaced deliverable", error);
+      }
+    }
 
     return NextResponse.json({ invoice: updatedInvoice }, { status: 201 });
   } catch (error) {

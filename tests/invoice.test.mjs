@@ -2,12 +2,39 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  attachDeliverableRecord,
+  confirmPaymentRecord,
+  createInvoiceRecord,
   createInvoiceSchema,
   deriveInvoiceStatus,
   invoiceSchema,
   paidInvoiceCents,
   totalInvoiceCents,
 } from "../src/domain/invoice.ts";
+
+const validInvoiceInput = {
+  title: "Launch campaign",
+  clientName: "Nia Coffee",
+  clientEmail: "hello@nia.example",
+  freelancerName: "Amina Studio",
+  freelancerWallet: "0x2f0B23f53734252Bda2277357e97e1517d6B042A",
+  note: "",
+  convertPercent: 0,
+  milestones: [
+    {
+      title: "Creative direction",
+      description: "Moodboard and visual routes.",
+      amountCents: 15_000,
+      dueDate: "2099-01-01",
+    },
+    {
+      title: "Final handoff",
+      description: "Production-ready files.",
+      amountCents: 35_000,
+      dueDate: "2099-01-08",
+    },
+  ],
+};
 
 function invoiceWithMilestones(milestones) {
   const now = "2026-07-14T12:00:00.000Z";
@@ -79,22 +106,51 @@ test("an unpaid invoice becomes overdue after its earliest due date", () => {
 
 test("invoice input rejects malformed recipient wallets", () => {
   const result = createInvoiceSchema.safeParse({
-    title: "Launch campaign",
-    clientName: "Nia Coffee",
-    clientEmail: "hello@nia.example",
-    freelancerName: "Amina Studio",
+    ...validInvoiceInput,
     freelancerWallet: "not-a-wallet",
-    note: "",
-    convertPercent: 0,
-    milestones: [
-      {
-        title: "Creative direction",
-        description: "",
-        amountCents: 15_000,
-        dueDate: "2099-01-01",
-      },
-    ],
   });
 
   assert.equal(result.success, false);
+});
+
+test("new invoice records receive stable public numbers and internal ids", () => {
+  const invoice = createInvoiceRecord(validInvoiceInput, "TD-042");
+
+  assert.equal(invoice.number, "TD-042");
+  assert.match(invoice.id, /^inv_/);
+  assert.equal(invoice.milestones.length, 2);
+  assert.ok(invoice.milestones.every((milestone) => milestone.id.startsWith("mil_")));
+  assert.equal(invoice.activity[0].type, "invoice_created");
+});
+
+test("attaching a deliverable updates only the selected milestone", () => {
+  const invoice = createInvoiceRecord(validInvoiceInput, "TD-043");
+  const selectedMilestone = invoice.milestones[1];
+  const updated = attachDeliverableRecord(invoice, selectedMilestone.id, {
+    storageKey: `${invoice.id}/${selectedMilestone.id}/handoff.zip`,
+    name: "handoff.zip",
+    mimeType: "application/zip",
+    size: 128,
+  });
+
+  assert.ok(updated);
+  assert.equal(updated.milestones[0].deliverableStorageKey, undefined);
+  assert.equal(updated.milestones[1].deliverableName, "handoff.zip");
+  assert.equal(updated.milestones[1].deliverableSize, 128);
+});
+
+test("payment confirmation releases one milestone and updates invoice progress", () => {
+  const invoice = createInvoiceRecord(validInvoiceInput, "TD-044");
+  const selectedMilestone = invoice.milestones[0];
+  const updated = confirmPaymentRecord(invoice, selectedMilestone.id, {
+    transactionHash: "demo_test_settlement",
+    payerAddress: "0xDemoClientWallet",
+  });
+
+  assert.ok(updated);
+  assert.equal(updated.status, "partially_paid");
+  assert.equal(updated.milestones[0].status, "released");
+  assert.equal(updated.milestones[1].status, "pending");
+  assert.equal(updated.activity[0].type, "payment_confirmed");
+  assert.equal(updated.activity[1].type, "deliverable_released");
 });
