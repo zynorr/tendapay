@@ -57,6 +57,11 @@ The x402 route prices a protected file at the milestone amount and names the
 freelancer wallet as `payTo`. The facilitator verifies and settles the payment.
 Only then does TendaPay record the receipt and return the file.
 
+If the agent loses the successful download response, it can repeat the same
+resource request. Once the milestone is released, TendaPay returns the file
+without invoking the facilitator again. The response header distinguishes a
+newly confirmed settlement from a previously confirmed retry.
+
 The configured server wallet signs facilitator requests. It is not the payment
 recipient and does not custody freelancer funds.
 

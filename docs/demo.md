@@ -51,7 +51,9 @@ and does not send another payment.
 Configure `THIRDWEB_SECRET_KEY` and `THIRDWEB_SERVER_WALLET_ADDRESS`, then use the
 agent endpoint shown below the next milestone. An unpaid request should receive
 a `402` challenge. A payment-capable client can satisfy that challenge and
-receive the deliverable in the same request flow.
+receive the deliverable in the same request flow. Repeat the request after a
+successful settlement to demonstrate idempotent delivery without another
+facilitator call.
 
 ## Reset and health checks
 

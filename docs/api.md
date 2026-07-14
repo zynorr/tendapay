@@ -111,7 +111,11 @@ GET /api/x402/invoices/:invoiceId/milestones/:milestoneId/deliverable
 
 Without payment, a configured facilitator returns an x402 `402` challenge for
 the exact milestone price. A successful settlement returns the file and records
-the facilitator receipt.
+the facilitator receipt. The response carries the facilitator payment headers
+and `X-TendaPay-Settlement: confirmed`.
 
-The route returns `503` when server-side x402 credentials are absent and `409`
-when the milestone has already settled through another flow.
+The route returns `503` when server-side x402 credentials are absent. After a
+milestone settles, retries return the released file with
+`X-TendaPay-Settlement: previously-confirmed` without contacting the facilitator
+or charging again. A settlement receipt already used by another milestone
+returns `409`.
