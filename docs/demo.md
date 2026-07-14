@@ -41,7 +41,10 @@ Before presenting a live payment, confirm that:
 
 Select the milestone payment button, approve the chain switch if requested, and
 approve the USDC transaction. TendaPay waits for the receipt and independently
-verifies it before releasing the file.
+verifies it before releasing the file. After wallet approval, the transaction
+hash is retained in the browser until confirmation succeeds. If verification
+is interrupted, select **Resume confirmation**; this retries the existing hash
+and does not send another payment.
 
 ## x402 flow
 

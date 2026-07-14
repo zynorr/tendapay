@@ -13,6 +13,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   ReceiptText,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Wallet,
@@ -21,7 +22,14 @@ import {
 import type { Invoice, Milestone } from "@/domain/invoice";
 import { paidInvoiceCents, totalInvoiceCents } from "@/domain/invoice";
 import { formatDate, formatMoney, shortenAddress } from "@/lib/format";
-import { payUsdcMilestone } from "@/lib/celo";
+import { submitUsdcMilestone } from "@/lib/celo";
+import { CELO_EXPLORER_URL } from "@/lib/celo-config";
+import {
+  clearPendingPayment,
+  readPendingPayment,
+  savePendingPayment,
+  type PendingPayment,
+} from "@/lib/pending-payment";
 import { BrandMark } from "@/components/brand-mark";
 import { StatusBadge } from "@/components/status-badge";
 
@@ -37,6 +45,7 @@ export function ClientInvoice({ invoiceId }: ClientInvoiceProps) {
   const [error, setError] = useState("");
   const [walletDetected, setWalletDetected] = useState(false);
   const [copiedEndpointId, setCopiedEndpointId] = useState<string | null>(null);
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null);
 
   useEffect(() => {
     const detectionTimer = window.setTimeout(() => {
@@ -62,6 +71,28 @@ export function ClientInvoice({ invoiceId }: ClientInvoiceProps) {
     [invoice],
   );
 
+  useEffect(() => {
+    if (!invoice) {
+      return;
+    }
+
+    for (const milestone of invoice.milestones) {
+      if (["paid", "released"].includes(milestone.status)) {
+        clearPendingPayment(window.localStorage, invoice.id, milestone.id);
+      }
+    }
+
+    const pendingTimer = window.setTimeout(() => {
+      setPendingPayment(
+        nextMilestone
+          ? readPendingPayment(window.localStorage, invoice.id, nextMilestone.id)
+          : null,
+      );
+    }, 0);
+
+    return () => window.clearTimeout(pendingTimer);
+  }, [invoice, nextMilestone]);
+
   async function confirmDemoPayment(milestone: Milestone) {
     setPayingMilestoneId(milestone.id);
     setError("");
@@ -75,7 +106,6 @@ export function ClientInvoice({ invoiceId }: ClientInvoiceProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             transactionHash: `demo_${crypto.randomUUID()}`,
-            payerAddress: "0xDemoClientWallet",
           }),
         },
       );
@@ -93,6 +123,29 @@ export function ClientInvoice({ invoiceId }: ClientInvoiceProps) {
     }
   }
 
+  async function confirmSubmittedPayment(
+    milestone: Milestone,
+    payment: PendingPayment,
+  ) {
+    const response = await fetch(
+      `/api/invoices/${invoiceId}/milestones/${milestone.id}/confirm`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactionHash: payment.transactionHash }),
+      },
+    );
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error ?? "The payment could not be confirmed.");
+    }
+
+    clearPendingPayment(window.localStorage, invoiceId, milestone.id);
+    setPendingPayment(null);
+    setInvoice(result.invoice);
+  }
+
   async function payWithWallet(milestone: Milestone) {
     if (!invoice) return;
 
@@ -100,28 +153,28 @@ export function ClientInvoice({ invoiceId }: ClientInvoiceProps) {
     setError("");
 
     try {
-      const payment = await payUsdcMilestone({
-        recipient: invoice.freelancerWallet,
-        amountCents: milestone.amountCents,
-      });
-      const response = await fetch(
-        `/api/invoices/${invoiceId}/milestones/${milestone.id}/confirm`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            transactionHash: payment.hash,
-            payerAddress: payment.payerAddress,
-          }),
-        },
-      );
-      const result = await response.json();
+      let payment =
+        pendingPayment?.milestoneId === milestone.id
+          ? pendingPayment
+          : readPendingPayment(window.localStorage, invoice.id, milestone.id);
 
-      if (!response.ok) {
-        throw new Error(result.error ?? "The payment could not be confirmed.");
+      if (!payment) {
+        const submitted = await submitUsdcMilestone({
+          recipient: invoice.freelancerWallet,
+          amountCents: milestone.amountCents,
+        });
+        payment = {
+          invoiceId: invoice.id,
+          milestoneId: milestone.id,
+          transactionHash: submitted.hash,
+          payerAddress: submitted.payerAddress,
+          submittedAt: new Date().toISOString(),
+        };
+        savePendingPayment(window.localStorage, payment);
+        setPendingPayment(payment);
       }
 
-      setInvoice(result.invoice);
+      await confirmSubmittedPayment(milestone, payment);
     } catch (paymentError) {
       setError(
         paymentError instanceof Error
@@ -201,6 +254,10 @@ export function ClientInvoice({ invoiceId }: ClientInvoiceProps) {
               {invoice.milestones.map((milestone, index) => {
                 const isReleased = milestone.status === "released";
                 const isNext = nextMilestone?.id === milestone.id;
+                const pendingForMilestone =
+                  pendingPayment?.milestoneId === milestone.id
+                    ? pendingPayment
+                    : null;
                 return (
                   <article className={`client-milestone ${isNext ? "next" : ""}`} key={milestone.id}>
                     <div className="milestone-index">{isReleased ? <Check size={16} /> : index + 1}</div>
@@ -235,12 +292,30 @@ export function ClientInvoice({ invoiceId }: ClientInvoiceProps) {
                               onClick={() => payWithWallet(milestone)}
                             >
                               {payingMilestoneId === milestone.id ? (
-                                <><LoaderCircle className="spin" size={17} /> Confirming on Celo...</>
+                                <>
+                                  <LoaderCircle className="spin" size={17} />
+                                  {pendingForMilestone
+                                    ? "Confirming payment..."
+                                    : "Opening wallet..."}
+                                </>
+                              ) : pendingForMilestone ? (
+                                <><RefreshCw size={17} /> Resume confirmation</>
                               ) : (
                                 <><Wallet size={17} /> Pay {formatMoney(milestone.amountCents)}</>
                               )}
                             </button>
-                            {process.env.NODE_ENV !== "production" ? (
+                            {pendingForMilestone ? (
+                              <div className="pending-payment-note">
+                                <span>Payment submitted</span>
+                                <a
+                                  href={`${CELO_EXPLORER_URL}/tx/${pendingForMilestone.transactionHash}`}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                >
+                                  View on CeloScan <ExternalLink size={12} />
+                                </a>
+                              </div>
+                            ) : process.env.NODE_ENV !== "production" ? (
                               <button
                                 className="text-button demo-payment-button"
                                 disabled={payingMilestoneId !== null}
@@ -298,7 +373,7 @@ export function ClientInvoice({ invoiceId }: ClientInvoiceProps) {
         </section>
       </main>
 
-      <footer className="client-footer"><span>Payment terms secured by TendaPay</span><span>USDC · Celo</span></footer>
+      <footer className="client-footer"><span>Payment terms secured by TendaPay</span><span>USDC / Celo</span></footer>
     </div>
   );
 }

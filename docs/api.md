@@ -87,9 +87,18 @@ Content-Type: application/json
 }
 ```
 
-The server verifies the transaction against Celo before changing invoice state.
-It returns `200` with the updated invoice, `422` for a receipt mismatch, or `409`
-when a transaction hash has already been used.
+The server waits for one Celo confirmation before changing invoice state. It
+returns `200` with the updated invoice and is idempotent after the milestone has
+settled. Verification failures include a machine-readable `code` and
+`retryable` flag.
+
+| Status | Meaning |
+| --- | --- |
+| `400` | Invalid transaction reference. |
+| `425` | Transaction submitted but still waiting for confirmation. |
+| `422` | Reverted receipt or token, call, recipient, or amount mismatch. |
+| `409` | Transaction hash already settled a different milestone. |
+| `503` | Celo verification provider temporarily unavailable. |
 
 Development accepts references prefixed with `demo_` so the interface can be
 shown without a funded wallet. Production rejects these references.

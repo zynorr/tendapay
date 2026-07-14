@@ -245,6 +245,8 @@ button { color: inherit; }
 .milestone-payment-actions { display: grid; justify-items: center; gap: 10px; }
 .demo-payment-button { font-size: 10px; }
 .demo-payment-button:disabled { opacity: .5; cursor: not-allowed; }
+.pending-payment-note { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 10px; }
+.pending-payment-note a { display: inline-flex; align-items: center; gap: 5px; color: var(--green); font-weight: 750; }
 .agent-endpoint { min-width: 0; display: grid; grid-template-columns: 24px 1fr 30px; align-items: center; gap: 8px; margin-top: 12px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 5px; color: var(--green); background: #fbfcfb; }
 .agent-endpoint > div { min-width: 0; display: grid; gap: 3px; }
 .agent-endpoint span { color: var(--muted); font-size: 9px; font-weight: 700; }

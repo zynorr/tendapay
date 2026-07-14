@@ -11,6 +11,8 @@ export const CELO_USDC_FEE_ADAPTER = getAddress(
   "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B",
 );
 
+export const CELO_EXPLORER_URL = "https://celoscan.io";
+
 export const CELO_PUBLIC_CHAIN = defineChain({
   id: 42_220,
   name: "Celo",
@@ -23,6 +25,6 @@ export const CELO_PUBLIC_CHAIN = defineChain({
     default: { http: [CELO_RPC_URL] },
   },
   blockExplorers: {
-    default: { name: "CeloScan", url: "https://celoscan.io" },
+    default: { name: "CeloScan", url: CELO_EXPLORER_URL },
   },
 });

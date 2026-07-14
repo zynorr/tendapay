@@ -6,8 +6,18 @@ import { verifyMilestonePayment } from "@/lib/server/payment-verifier";
 
 const paymentSchema = z.object({
   transactionHash: z.string().min(4),
-  payerAddress: z.string().min(4).optional(),
 });
+
+const verificationStatus = {
+  invalid_reference: 400,
+  pending: 425,
+  reverted: 422,
+  wrong_token: 422,
+  invalid_transfer: 422,
+  wrong_recipient: 422,
+  wrong_amount: 422,
+  provider_unavailable: 503,
+} as const;
 
 type RouteContext = {
   params: Promise<{ invoiceId: string; milestoneId: string }>;
@@ -37,6 +47,10 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    if (["paid", "released"].includes(milestone.status)) {
+      return NextResponse.json({ invoice: currentInvoice });
+    }
+
     const verification = await verifyMilestonePayment({
       hash: parsedPayment.data.transactionHash,
       recipient: currentInvoice.freelancerWallet,
@@ -44,7 +58,14 @@ export async function POST(request: Request, context: RouteContext) {
     });
 
     if (!verification.valid) {
-      return NextResponse.json({ error: verification.reason }, { status: 422 });
+      return NextResponse.json(
+        {
+          error: verification.reason,
+          code: verification.code,
+          retryable: verification.retryable,
+        },
+        { status: verificationStatus[verification.code] },
+      );
     }
 
     const invoice = await invoiceRepository.confirmPayment(invoiceId, milestoneId, {

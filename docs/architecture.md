@@ -45,6 +45,12 @@ flowchart LR
    recipient, amount, and previous use of the hash.
 6. The repository records settlement and releases the milestone deliverable.
 
+The browser stores a submitted transaction hash before asking the API to
+confirm it. If the page reloads or the RPC is temporarily unavailable, the
+client resumes confirmation with that hash instead of opening the wallet for a
+second transfer. The recovery record is removed only after the API returns the
+updated invoice.
+
 ## Agent payment sequence
 
 The x402 route prices a protected file at the milestone amount and names the

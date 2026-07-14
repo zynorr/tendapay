@@ -12,6 +12,7 @@ The application does not custody project funds.
 - Share a focused client payment page.
 - Pay exact USDC amounts with MiniPay or another injected EVM wallet.
 - Verify token, recipient, amount, receipt status, and transaction reuse.
+- Resume confirmation without sending a second transfer after a network failure.
 - Append ERC-8021 attribution to browser wallet transactions.
 - Release protected files after confirmed settlement.
 - Offer milestone files through an x402 payment endpoint for agents.
