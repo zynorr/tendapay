@@ -5,7 +5,8 @@ adapters for persistence, Celo verification, file storage, and x402 settlement.
 
 ```mermaid
 flowchart LR
-  Freelancer["Freelancer dashboard"] --> InvoiceAPI["Invoice API"]
+  Freelancer["Freelancer wallet"] --> Auth["Signed workspace session"]
+  Auth --> InvoiceAPI["Invoice management API"]
   Client["Client payment page"] --> Wallet["MiniPay or EVM wallet"]
   Wallet --> Celo["Celo USDC contract"]
   Client --> ConfirmAPI["Payment confirmation API"]
@@ -70,6 +71,8 @@ recipient and does not custody freelancer funds.
 An invoice owns one or more milestones and an activity log. A milestone carries
 its amount in integer cents, due date, settlement state, optional receipt data,
 and optional protected-file metadata. Currency is fixed to USDC in the MVP.
+Every invoice also carries a workspace ID derived from its owner wallet. List,
+create, and deliverable-upload queries include that workspace boundary.
 
 When `DATABASE_URL` is configured, invoices are stored as validated JSONB
 records inside PostgreSQL transactions. A dedicated settlement table enforces
@@ -89,11 +92,13 @@ both production adapters.
 ## Security properties
 
 - Server-side validation uses Zod at API and persistence boundaries.
+- Freelancer management uses signed wallet challenges and HttpOnly sessions.
+- Invoice management queries enforce the authenticated workspace ID.
 - Payment confirmation does not trust the payer's submitted amount or address.
 - A transaction hash cannot settle more than one milestone.
 - File names are normalized and storage paths are checked against traversal.
 - Downloads use `private, no-store` and remain unavailable before release.
 - Simulated transaction references are rejected in production.
 
-The MVP does not include authentication. Invoice URLs are capability links and
-should be treated as sensitive.
+Client invoice URLs remain capability links and should be treated as sensitive.
+Expiring and revocable client access is a separate production boundary.

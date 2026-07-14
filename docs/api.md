@@ -3,6 +3,30 @@
 All responses are JSON unless a deliverable is returned. Amounts in request and
 response objects are integer USDC cents.
 
+## Authentication
+
+Freelancer management endpoints use an HttpOnly wallet session. The sign-in
+sequence is:
+
+```http
+POST /api/auth/challenge
+POST /api/auth/verify
+GET  /api/auth/session
+POST /api/auth/logout
+```
+
+`POST /api/auth/challenge` accepts `{ "address": "0x..." }` and returns a
+five-minute message. Sign that exact message and send `{ "message": "...",
+"signature": "0x..." }` to `/api/auth/verify`. Successful verification sets a
+seven-day session cookie.
+
+`POST /api/auth/demo` creates the seeded development workspace and returns
+`404` in production.
+
+Invoice listing, creation, and deliverable upload require a workspace session.
+Client invoice reads, payment confirmation, released downloads, and x402 remain
+public capability routes.
+
 ## Invoices
 
 ### List invoices
@@ -12,6 +36,7 @@ GET /api/invoices
 ```
 
 Returns `200` with `{ "invoices": [...] }`.
+Returns `401` without a valid workspace session.
 
 ### Create an invoice
 

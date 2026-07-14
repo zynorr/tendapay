@@ -12,9 +12,13 @@ Windows PowerShell uses `Copy-Item .env.example .env.local` for the second
 command. Remove `.data/` before starting when you need the original sample
 invoice again. Do not remove it if it contains deliverables you need.
 
+On the first screen, select **Open demo workspace**. This development-only
+session owns the seeded `TD-001` invoice. Production does not expose demo
+authentication.
+
 ## Freelancer flow
 
-1. Open the dashboard.
+1. Open the authenticated dashboard.
 2. Select **New invoice**.
 3. Enter the project, client, receiving wallet, and milestone details.
 4. Attach a deliverable to one or more milestones.

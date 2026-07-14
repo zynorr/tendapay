@@ -25,6 +25,8 @@ const invoiceInput = {
     },
   ],
 };
+const firstWorkspaceId = "ws_first";
+const secondWorkspaceId = "ws_second";
 
 async function createRepository() {
   const database = newDb();
@@ -34,8 +36,18 @@ async function createRepository() {
     path.join(process.cwd(), "db", "migrations", "001_initial.sql"),
     "utf8",
   );
+  const workspaceMigration = await readFile(
+    path.join(
+      process.cwd(),
+      "db",
+      "migrations",
+      "002_invoice_workspaces.sql",
+    ),
+    "utf8",
+  );
 
   await pool.query(migration);
+  await pool.query(workspaceMigration);
   return { pool, repository: new PostgresInvoiceRepository(pool) };
 }
 
@@ -43,19 +55,25 @@ test("PostgreSQL repository persists invoice, file, and settlement state", async
   const { pool, repository } = await createRepository();
 
   try {
-    const invoice = await repository.create(invoiceInput);
+    const invoice = await repository.create(firstWorkspaceId, invoiceInput);
     const milestone = invoice.milestones[0];
 
     assert.equal(invoice.number, "TD-001");
-    assert.equal((await repository.list()).length, 1);
+    assert.equal((await repository.list(firstWorkspaceId)).length, 1);
+    assert.equal((await repository.list(secondWorkspaceId)).length, 0);
     assert.equal((await repository.findById(invoice.id))?.id, invoice.id);
 
-    const withFile = await repository.attachDeliverable(invoice.id, milestone.id, {
-      storageKey: `${invoice.id}/${milestone.id}/direction.pdf`,
-      name: "direction.pdf",
-      mimeType: "application/pdf",
-      size: 64,
-    });
+    const withFile = await repository.attachDeliverable(
+      firstWorkspaceId,
+      invoice.id,
+      milestone.id,
+      {
+        storageKey: `${invoice.id}/${milestone.id}/direction.pdf`,
+        name: "direction.pdf",
+        mimeType: "application/pdf",
+        size: 64,
+      },
+    );
 
     assert.equal(withFile?.milestones[0].deliverableName, "direction.pdf");
 
@@ -75,8 +93,8 @@ test("PostgreSQL repository rejects a reused transaction hash", async () => {
   const { pool, repository } = await createRepository();
 
   try {
-    const firstInvoice = await repository.create(invoiceInput);
-    const secondInvoice = await repository.create({
+    const firstInvoice = await repository.create(firstWorkspaceId, invoiceInput);
+    const secondInvoice = await repository.create(secondWorkspaceId, {
       ...invoiceInput,
       title: "Second launch campaign",
     });
@@ -100,6 +118,34 @@ test("PostgreSQL repository rejects a reused transaction hash", async () => {
     const unchangedInvoice = await repository.findById(secondInvoice.id);
     assert.equal(unchangedInvoice?.status, "sent");
     assert.equal(unchangedInvoice?.milestones[0].status, "pending");
+  } finally {
+    await pool.end();
+  }
+});
+
+test("PostgreSQL repository denies cross-workspace file management", async () => {
+  const { pool, repository } = await createRepository();
+
+  try {
+    const invoice = await repository.create(firstWorkspaceId, invoiceInput);
+    const milestone = invoice.milestones[0];
+    const result = await repository.attachDeliverable(
+      secondWorkspaceId,
+      invoice.id,
+      milestone.id,
+      {
+        storageKey: `${invoice.id}/${milestone.id}/direction.pdf`,
+        name: "direction.pdf",
+        mimeType: "application/pdf",
+        size: 64,
+      },
+    );
+
+    assert.equal(result, null);
+    assert.equal(
+      await repository.findByIdForWorkspace(invoice.id, secondWorkspaceId),
+      null,
+    );
   } finally {
     await pool.end();
   }

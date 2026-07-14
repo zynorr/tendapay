@@ -41,12 +41,16 @@ export class PostgresInvoiceRepository implements InvoiceRepository {
     }
   }
 
-  async list(): Promise<Invoice[]> {
-    const result = await this.pool.query<InvoiceRow>(`
-      SELECT payload
-      FROM tendapay_invoices
-      ORDER BY created_at DESC
-    `);
+  async list(workspaceId: string): Promise<Invoice[]> {
+    const result = await this.pool.query<InvoiceRow>(
+      `
+        SELECT payload
+        FROM tendapay_invoices
+        WHERE workspace_id = $1
+        ORDER BY created_at DESC
+      `,
+      [workspaceId],
+    );
 
     return result.rows.map((row) => invoiceSchema.parse(row.payload));
   }
@@ -65,7 +69,24 @@ export class PostgresInvoiceRepository implements InvoiceRepository {
     return parseInvoiceRow(result.rows[0]);
   }
 
-  async create(input: CreateInvoiceInput): Promise<Invoice> {
+  async findByIdForWorkspace(
+    id: string,
+    workspaceId: string,
+  ): Promise<Invoice | null> {
+    const result = await this.pool.query<InvoiceRow>(
+      `
+        SELECT payload
+        FROM tendapay_invoices
+        WHERE id = $1 AND workspace_id = $2
+        LIMIT 1
+      `,
+      [id, workspaceId],
+    );
+
+    return parseInvoiceRow(result.rows[0]);
+  }
+
+  async create(workspaceId: string, input: CreateInvoiceInput): Promise<Invoice> {
     const validatedInput = createInvoiceSchema.parse(input);
 
     return this.withTransaction(async (client) => {
@@ -73,21 +94,23 @@ export class PostgresInvoiceRepository implements InvoiceRepository {
         "SELECT nextval('tendapay_invoice_number_seq')::text AS value",
       );
       const number = `TD-${sequenceResult.rows[0].value.padStart(3, "0")}`;
-      const invoice = createInvoiceRecord(validatedInput, number);
+      const invoice = createInvoiceRecord(validatedInput, number, workspaceId);
 
       await client.query(
         `
           INSERT INTO tendapay_invoices (
             id,
+            workspace_id,
             number,
             payload,
             created_at,
             updated_at
           )
-          VALUES ($1, $2, $3::jsonb, $4, $5)
+          VALUES ($1, $2, $3, $4::jsonb, $5, $6)
         `,
         [
           invoice.id,
+          invoice.workspaceId,
           invoice.number,
           JSON.stringify(invoice),
           invoice.createdAt,
@@ -100,6 +123,7 @@ export class PostgresInvoiceRepository implements InvoiceRepository {
   }
 
   async attachDeliverable(
+    workspaceId: string,
     invoiceId: string,
     milestoneId: string,
     deliverable: DeliverableAttachment,
@@ -109,10 +133,10 @@ export class PostgresInvoiceRepository implements InvoiceRepository {
         `
           SELECT payload
           FROM tendapay_invoices
-          WHERE id = $1
+          WHERE id = $1 AND workspace_id = $2
           FOR UPDATE
         `,
-        [invoiceId],
+        [invoiceId, workspaceId],
       );
       const invoice = parseInvoiceRow(result.rows[0]);
 

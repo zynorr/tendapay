@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { DEMO_WORKSPACE_ID } from "@/domain/workspace";
+
 export const milestoneStatusSchema = z.enum([
   "pending",
   "payment_pending",
@@ -47,6 +49,7 @@ export const activitySchema = z.object({
 
 export const invoiceSchema = z.object({
   id: z.string().min(1),
+  workspaceId: z.string().min(1).default(DEMO_WORKSPACE_ID),
   number: z.string().min(1),
   title: z.string().min(2),
   clientName: z.string().min(2),
@@ -142,6 +145,7 @@ export function deriveInvoiceStatus(invoice: Invoice): Invoice["status"] {
 export function createInvoiceRecord(
   input: CreateInvoiceInput,
   number: string,
+  workspaceId = DEMO_WORKSPACE_ID,
 ): Invoice {
   const validatedInput = createInvoiceSchema.parse(input);
   const now = new Date().toISOString();
@@ -149,6 +153,7 @@ export function createInvoiceRecord(
   return invoiceSchema.parse({
     ...validatedInput,
     id: `inv_${crypto.randomUUID()}`,
+    workspaceId,
     number,
     currency: "USDC",
     status: "sent",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getRequestSession } from "@/lib/server/auth";
 import { invoiceRepository } from "@/lib/server/invoice-repository";
 import {
   deleteDeliverable,
@@ -14,8 +15,17 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext) {
   try {
+    const session = getRequestSession(request);
+
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+    }
+
     const { invoiceId, milestoneId } = await context.params;
-    const invoice = await invoiceRepository.findById(invoiceId);
+    const invoice = await invoiceRepository.findByIdForWorkspace(
+      invoiceId,
+      session.workspaceId,
+    );
     const milestone = invoice?.milestones.find(
       (candidate) => candidate.id === milestoneId,
     );
@@ -54,6 +64,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     try {
       updatedInvoice = await invoiceRepository.attachDeliverable(
+        session.workspaceId,
         invoiceId,
         milestoneId,
         storedFile,

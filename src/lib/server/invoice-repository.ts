@@ -8,10 +8,12 @@ import { LocalInvoiceRepository } from "@/lib/server/local-invoice-repository";
 import { PostgresInvoiceRepository } from "@/lib/server/postgres-invoice-repository";
 
 export interface InvoiceRepository {
-  list(): Promise<Invoice[]>;
+  list(workspaceId: string): Promise<Invoice[]>;
   findById(id: string): Promise<Invoice | null>;
-  create(input: CreateInvoiceInput): Promise<Invoice>;
+  findByIdForWorkspace(id: string, workspaceId: string): Promise<Invoice | null>;
+  create(workspaceId: string, input: CreateInvoiceInput): Promise<Invoice>;
   attachDeliverable(
+    workspaceId: string,
     invoiceId: string,
     milestoneId: string,
     deliverable: DeliverableAttachment,

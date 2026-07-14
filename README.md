@@ -9,6 +9,7 @@ The application does not custody project funds.
 ## MVP
 
 - Create milestone invoices and attach deliverables.
+- Sign in with a wallet and isolate invoice management by workspace.
 - Share a focused client payment page.
 - Pay exact USDC amounts with MiniPay or another injected EVM wallet.
 - Verify token, recipient, amount, receipt status, and transaction reuse.
@@ -51,6 +52,7 @@ Copy `.env.example` and set only the integrations you need:
 | `S3_ACCESS_KEY_ID` | S3 | Omit when workload credentials are available. |
 | `S3_SECRET_ACCESS_KEY` | S3 | Must be set with the access key ID. |
 | `S3_FORCE_PATH_STYLE` | No | Enable for providers that require path-style URLs. |
+| `AUTH_SECRET` | Production | Signs wallet challenges and seven-day workspace sessions. |
 | `THIRDWEB_SECRET_KEY` | x402 only | Server-side thirdweb client credential. |
 | `THIRDWEB_SERVER_WALLET_ADDRESS` | x402 only | Wallet that signs facilitator requests. |
 | `X402_FACILITATOR_URL` | No | Defaults to `https://x402.celo.org`. |
@@ -73,10 +75,11 @@ npm run db:migrate
 - [API reference](docs/api.md)
 - [Demo guide](docs/demo.md)
 - [Deployment](docs/deployment.md)
+- [Authentication](docs/authentication.md)
 
 ## MVP boundaries
 
 Local development uses JSON and disk storage to keep the hackathon demo
 self-contained. Deployments can use PostgreSQL and private S3-compatible object
-storage. Production still needs authenticated freelancer accounts, expiring
-client links, and operational monitoring.
+storage. Production still needs account recovery, expiring client links, team
+membership controls, and operational monitoring.

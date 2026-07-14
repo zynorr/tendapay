@@ -11,8 +11,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:domain && npm run test:server",
-    "test:domain": "node --test --experimental-strip-types tests/invoice.test.mjs",
-    "test:server": "tsx --test tests/server/postgres-invoice-repository.test.ts tests/server/deliverable-storage.test.ts tests/server/payment-verifier.test.ts tests/server/pending-payment.test.ts tests/server/x402-deliverable-handler.test.ts"
+    "test:domain": "tsx --test tests/invoice.test.mjs",
+    "test:server": "tsx --test tests/server/auth.test.ts tests/server/postgres-invoice-repository.test.ts tests/server/deliverable-storage.test.ts tests/server/payment-verifier.test.ts tests/server/pending-payment.test.ts tests/server/x402-deliverable-handler.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1087.0",

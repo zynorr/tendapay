@@ -61,6 +61,15 @@ class MemoryInvoiceRepository implements InvoiceRepository {
     return this.invoice.id === id ? this.invoice : null;
   }
 
+  async findByIdForWorkspace(
+    id: string,
+    workspaceId: string,
+  ): Promise<Invoice | null> {
+    return this.invoice.id === id && this.invoice.workspaceId === workspaceId
+      ? this.invoice
+      : null;
+  }
+
   async create(): Promise<Invoice> {
     throw new Error("Not implemented in test repository.");
   }

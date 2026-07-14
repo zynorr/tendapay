@@ -4,6 +4,16 @@ TendaPay selects production persistence through environment variables. Setting
 `DATABASE_URL` enables PostgreSQL. Setting `S3_BUCKET` enables private
 S3-compatible file storage. Without them, the application uses `.data/`.
 
+Production also requires a stable authentication secret shared by every
+application instance:
+
+```dotenv
+AUTH_SECRET=<at-least-32-random-characters>
+```
+
+Changing this value signs out existing freelancer sessions. Do not expose it
+through a `NEXT_PUBLIC_` variable.
+
 ## PostgreSQL
 
 Create a database, set a connection string, and run the tracked migrations:
@@ -50,7 +60,7 @@ keys are optional when the deployment platform supplies workload credentials.
 ## Deployment order
 
 1. Provision PostgreSQL and a private bucket.
-2. Set server-side environment variables.
+2. Set server-side environment variables, including `AUTH_SECRET`.
 3. Run `npm run db:migrate`.
 4. Build and start the application.
 5. Create an invoice, upload a small file, and confirm that it remains locked.

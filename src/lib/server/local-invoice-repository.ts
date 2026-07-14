@@ -12,6 +12,10 @@ import {
   type DeliverableAttachment,
   type Invoice,
 } from "@/domain/invoice";
+import {
+  DEMO_OWNER_ADDRESS,
+  workspaceIdForAddress,
+} from "@/domain/workspace";
 import type { InvoiceRepository } from "@/lib/server/invoice-repository";
 
 const dataDirectory = path.join(process.cwd(), ".data");
@@ -28,6 +32,7 @@ function createSeedInvoice(): Invoice {
 
   return invoiceSchema.parse({
     id: "inv_tenda_demo",
+    workspaceId: workspaceIdForAddress(DEMO_OWNER_ADDRESS),
     number: "TD-001",
     title: "Nairobi Coffee brand launch",
     clientName: "Nia Coffee Co.",
@@ -129,8 +134,9 @@ export class LocalInvoiceRepository implements InvoiceRepository {
     return result;
   }
 
-  async list(): Promise<Invoice[]> {
-    return this.readInvoices();
+  async list(workspaceId: string): Promise<Invoice[]> {
+    const invoices = await this.readInvoices();
+    return invoices.filter((invoice) => invoice.workspaceId === workspaceId);
   }
 
   async findById(id: string): Promise<Invoice | null> {
@@ -138,7 +144,15 @@ export class LocalInvoiceRepository implements InvoiceRepository {
     return invoices.find((invoice) => invoice.id === id) ?? null;
   }
 
-  async create(input: CreateInvoiceInput): Promise<Invoice> {
+  async findByIdForWorkspace(
+    id: string,
+    workspaceId: string,
+  ): Promise<Invoice | null> {
+    const invoice = await this.findById(id);
+    return invoice?.workspaceId === workspaceId ? invoice : null;
+  }
+
+  async create(workspaceId: string, input: CreateInvoiceInput): Promise<Invoice> {
     const validatedInput = createInvoiceSchema.parse(input);
 
     return this.withWriteLock(async () => {
@@ -146,6 +160,7 @@ export class LocalInvoiceRepository implements InvoiceRepository {
       const invoice = createInvoiceRecord(
         validatedInput,
         nextInvoiceNumber(invoices),
+        workspaceId,
       );
 
       await this.persistInvoices([invoice, ...invoices]);
@@ -154,6 +169,7 @@ export class LocalInvoiceRepository implements InvoiceRepository {
   }
 
   async attachDeliverable(
+    workspaceId: string,
     invoiceId: string,
     milestoneId: string,
     deliverable: DeliverableAttachment,
@@ -162,7 +178,10 @@ export class LocalInvoiceRepository implements InvoiceRepository {
       const invoices = await this.readInvoices();
       const invoiceIndex = invoices.findIndex((invoice) => invoice.id === invoiceId);
 
-      if (invoiceIndex < 0) {
+      if (
+        invoiceIndex < 0 ||
+        invoices[invoiceIndex].workspaceId !== workspaceId
+      ) {
         return null;
       }
 

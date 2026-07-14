@@ -11,6 +11,7 @@ import {
   FileText,
   LayoutDashboard,
   LoaderCircle,
+  LogOut,
   MoreHorizontal,
   Plus,
   Search,
@@ -20,24 +21,52 @@ import {
 } from "lucide-react";
 
 import type { Invoice } from "@/domain/invoice";
+import type { WorkspaceSession } from "@/domain/workspace";
 import { paidInvoiceCents, totalInvoiceCents } from "@/domain/invoice";
-import { formatMoney, formatRelativeDate } from "@/lib/format";
+import { formatMoney, formatRelativeDate, shortenAddress } from "@/lib/format";
 import { BrandMark } from "@/components/brand-mark";
 import { StatusBadge } from "@/components/status-badge";
+import { WalletSignIn } from "@/components/auth/wallet-sign-in";
 import { InvoiceForm } from "./invoice-form";
 
 export function Dashboard() {
+  const [session, setSession] = useState<WorkspaceSession | null>();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
+    fetch("/api/auth/session")
+      .then(async (response) => {
+        if (!response.ok) {
+          return null;
+        }
+
+        const result = await response.json();
+        return result.session as WorkspaceSession;
+      })
+      .then((authenticatedSession) => setSession(authenticatedSession))
+      .catch(() => setSession(null));
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
     fetch("/api/invoices")
-      .then((response) => response.json())
+      .then(async (response) => {
+        if (response.status === 401) {
+          setSession(null);
+          return { invoices: [] };
+        }
+
+        return response.json();
+      })
       .then((result) => setInvoices(result.invoices ?? []))
       .finally(() => setLoading(false));
-  }, []);
+  }, [session]);
 
   const filteredInvoices = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -71,6 +100,39 @@ export function Dashboard() {
         .slice(0, 5),
     [invoices],
   );
+
+  if (session === undefined) {
+    return (
+      <main className="client-loading">
+        <LoaderCircle className="spin" size={24} /> Loading workspace
+      </main>
+    );
+  }
+
+  if (!session) {
+    return (
+      <WalletSignIn
+        onAuthenticated={(authenticatedSession) => {
+          setLoading(true);
+          setSession(authenticatedSession);
+        }}
+      />
+    );
+  }
+
+  const workspaceName = invoices[0]?.freelancerName ?? "Freelancer workspace";
+  const workspaceInitials = workspaceName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setInvoices([]);
+    setSession(null);
+  }
 
   return (
     <div className="app-shell">
@@ -112,9 +174,15 @@ export function Dashboard() {
         </nav>
 
         <div className="profile-row">
-          <span className="avatar">AS</span>
-          <div><strong>Amina Studio</strong><span>0x2f0B...042A</span></div>
-          <MoreHorizontal size={17} />
+          <span className="avatar">{workspaceInitials}</span>
+          <div><strong>{workspaceName}</strong><span>{shortenAddress(session.address)}</span></div>
+          <button
+            className="profile-sign-out"
+            aria-label="Sign out"
+            onClick={signOut}
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
 
@@ -132,6 +200,13 @@ export function Dashboard() {
           </label>
           <button className="icon-button notification-button" aria-label="Notifications">
             <Bell size={18} /><span />
+          </button>
+          <button
+            className="icon-button responsive-sign-out"
+            aria-label="Sign out"
+            onClick={signOut}
+          >
+            <LogOut size={17} />
           </button>
         </header>
 
@@ -181,7 +256,7 @@ export function Dashboard() {
                       <span className="invoice-file-icon"><FileText size={18} /></span>
                       <div className="invoice-identity">
                         <strong>{invoice.title}</strong>
-                        <span>{invoice.number} · {invoice.clientName}</span>
+                        <span>{invoice.number} / {invoice.clientName}</span>
                       </div>
                       <div className="invoice-progress">
                         <span>{invoice.milestones.filter((item) => ["paid", "released"].includes(item.status)).length}/{invoice.milestones.length} milestones</span>
@@ -205,7 +280,7 @@ export function Dashboard() {
                   <div className="activity-entry" key={entry.id}>
                     <span className="activity-line" />
                     <span className="activity-dot"><Bot size={13} /></span>
-                    <div><strong>{entry.message}</strong><span>{entry.invoiceNumber} · {formatRelativeDate(entry.createdAt)}</span></div>
+                    <div><strong>{entry.message}</strong><span>{entry.invoiceNumber} / {formatRelativeDate(entry.createdAt)}</span></div>
                   </div>
                 ))}
               </div>
@@ -217,6 +292,7 @@ export function Dashboard() {
 
       {showInvoiceForm ? (
         <InvoiceForm
+          defaultWallet={session.address}
           onClose={() => setShowInvoiceForm(false)}
           onCreated={(invoice) => {
             setInvoices((current) => [invoice, ...current]);

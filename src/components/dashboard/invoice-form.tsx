@@ -6,6 +6,7 @@ import { CalendarDays, FileUp, Plus, Trash2, X } from "lucide-react";
 import type { CreateInvoiceInput, Invoice } from "@/domain/invoice";
 
 type InvoiceFormProps = {
+  defaultWallet: string;
   onClose: () => void;
   onCreated: (invoice: Invoice) => void;
 };
@@ -32,7 +33,7 @@ function newMilestone(index: number): MilestoneDraft {
   };
 }
 
-export function InvoiceForm({ onClose, onCreated }: InvoiceFormProps) {
+export function InvoiceForm({ defaultWallet, onClose, onCreated }: InvoiceFormProps) {
   const [milestones, setMilestones] = useState<MilestoneDraft[]>([
     newMilestone(0),
     newMilestone(1),
@@ -153,7 +154,12 @@ export function InvoiceForm({ onClose, onCreated }: InvoiceFormProps) {
               </label>
               <label className="field">
                 <span>Receiving wallet</span>
-                <input name="freelancerWallet" placeholder="0x..." required />
+                <input
+                  name="freelancerWallet"
+                  placeholder="0x..."
+                  defaultValue={defaultWallet}
+                  required
+                />
               </label>
               <label className="field">
                 <span>Client name</span>
